@@ -96,7 +96,11 @@ bool isInsideOriginalEllipse(float x, float y) {
     float dx = x - centerX;
     float dy = y - centerY;
     
+<<<<<<< HEAD
     // Ellipse equation: (x-h)?/a? + (y-k)?/b? <= 1
+=======
+    // Ellipse equation: (x-h)²/a² + (y-k)²/b² <= 1
+>>>>>>> b6b3603efb5f944e0b4958f44301282046304334
     return ((dx*dx)/(a*a) + (dy*dy)/(b*b)) <= 1.0f;
 }
 
@@ -294,7 +298,11 @@ void drawAntiAliasedEllipse() {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
     
+<<<<<<< HEAD
     glLineWidth(1.0f);
+=======
+    glLineWidth(1.5f);
+>>>>>>> b6b3603efb5f944e0b4958f44301282046304334
     glColor3f(0.0f, 0.0f, 0.0f); // Black
     
     // Draw the anti-aliased ellipse
@@ -399,6 +407,7 @@ void display() {
             break;
     }
     
+<<<<<<< HEAD
       if (currentMode == 4 || currentMode == 5) {
         // Save current viewport/projection
         glPushMatrix();
@@ -437,6 +446,8 @@ void display() {
         glEnd();
     }
     
+=======
+>>>>>>> b6b3603efb5f944e0b4958f44301282046304334
     // Display current mode and instructions
     glColor3f(0.0f, 0.0f, 0.0f); // Black text
     glRasterPos2f(GRID_MIN_X + 0.5f, GRID_MAX_Y - 0.5f);
