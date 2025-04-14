@@ -6,12 +6,11 @@ from OpenGL.GLUT import *
 from OpenGL.GLU import *
 from OpenGL.GLUT import GLUT_BITMAP_8_BY_13, GLUT_BITMAP_9_BY_15
 
-
 # Global variables
 display_mode = 1  # Default display mode
 window_width, window_height = 800, 600
-center_x, center_y = -2, 2
-a, b = 3, 2  # Ellipse parameters
+center_x, center_y = 2, -1  # center based on (x-2)²/36 + (y+1)²/25 = 1
+a, b = 6, 5  #ellipse parameters: a=sqrt(36), b=sqrt(25)
 shear_x, shear_y = 2.0, 2.0  # Shear parameters
 
 def init():
@@ -19,8 +18,8 @@ def init():
     glClearColor(1.0, 1.0, 1.0, 1.0)  # White background
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
-    # Set the coordinate system to match the problem description
-    gluOrtho2D(-10.0, 10.0, -10.0, 10.0)
+    # Set the coordinate system to match the updated grid
+    gluOrtho2D(-15.0, 15.0, -15.0, 17.0)  # Updated grid range
     glMatrixMode(GL_MODELVIEW)
 
 def draw_grid():
@@ -29,31 +28,31 @@ def draw_grid():
     glLineWidth(0.5)
     
     # Draw horizontal grid lines
-    for y in range(-10, 11):
+    for y in range(-15, 18):  # range
         glBegin(GL_LINES)
-        glVertex2f(-10, y)
-        glVertex2f(10, y)
+        glVertex2f(-15, y)
+        glVertex2f(15, y)
         glEnd()
         
         # Label y-axis values (except at origin)
         if y != 0:
             glColor3f(0, 0, 0)  # Black text
-            glRasterPos2f(-0.5, y)
+            glRasterPos2f(-0.5, y - 0.1)
             for c in str(y):
                 glutBitmapCharacter(GLUT_BITMAP_8_BY_13, ord(c))
             glColor3f(0.8, 0.8, 0.8)  # Back to light gray
     
     # Draw vertical grid lines
-    for x in range(-10, 11):
+    for x in range(-15, 16):  # range
         glBegin(GL_LINES)
-        glVertex2f(x, -10)
-        glVertex2f(x, 10)
+        glVertex2f(x, -15)
+        glVertex2f(x, 17)
         glEnd()
         
         # Label x-axis values (except at origin)
         if x != 0:
             glColor3f(0, 0, 0)  # Black text
-            glRasterPos2f(x, -0.5)
+            glRasterPos2f(x - 0.1, -0.5)
             for c in str(x):
                 glutBitmapCharacter(GLUT_BITMAP_8_BY_13, ord(c))
             glColor3f(0.8, 0.8, 0.8)  # Back to light gray
@@ -64,42 +63,42 @@ def draw_grid():
     
     # x-axis
     glBegin(GL_LINES)
-    glVertex2f(-10, 0)
-    glVertex2f(10, 0)
+    glVertex2f(-15, 0)
+    glVertex2f(15, 0)
     glEnd()
     
     # y-axis
     glBegin(GL_LINES)
-    glVertex2f(0, -10)
-    glVertex2f(0, 10)
+    glVertex2f(0, -15)
+    glVertex2f(0, 17)
     glEnd()
 
 def draw_axis_labels():
     """Draw axis labels with more details"""
     # X-axis label
     glColor3f(1, 0, 0)  # Red for X-axis
-    glRasterPos2f(9.5, -0.5)
+    glRasterPos2f(14.5, -0.5)
     for c in "X":
         glutBitmapCharacter(GLUT_BITMAP_9_BY_15, ord(c))
     
     # Y-axis label
     glColor3f(0, 0, 1)  # Blue for Y-axis
-    glRasterPos2f(-0.7, 9.5)
+    glRasterPos2f(-0.7, 16.5)
     for c in "Y":
         glutBitmapCharacter(GLUT_BITMAP_9_BY_15, ord(c))
     
     # Origin label
     glColor3f(0, 0, 0)  # Black
-    glRasterPos2f(0.2, 0.2)
-    for c in "O":
+    glRasterPos2f(-0.6, -0.6)
+    for c in "0":
         glutBitmapCharacter(GLUT_BITMAP_8_BY_13, ord(c))
     
     # Draw tick marks at major intervals
     glColor3f(0, 0, 0)
-    glLineWidth(1.5)
+    glLineWidth(1.0)
     
     # X-axis ticks
-    for x in range(-10, 11, 2):  # Major ticks every 2 units
+    for x in range(-15, 16, 1):  # Ticks every unit
         if x != 0:  # Skip origin
             glBegin(GL_LINES)
             glVertex2f(x, -0.2)
@@ -107,15 +106,44 @@ def draw_axis_labels():
             glEnd()
     
     # Y-axis ticks
-    for y in range(-10, 11, 2):  # Major ticks every 2 units
+    for y in range(-15, 18, 1):  # Ticks every unit
         if y != 0:  # Skip origin
             glBegin(GL_LINES)
             glVertex2f(-0.2, y)
             glVertex2f(0.2, y)
             glEnd()
 
+def world_to_screen(wx, wy):
+    """Convert world coordinates to screen coordinates"""
+    range_x = 15.0 - (-15.0)
+    range_y = 17.0 - (-15.0)
+    sx = int((wx - (-15.0)) / range_x * window_width)
+    sy = int((1.0 - (wy - (-15.0)) / range_y) * window_height)
+    return sx, sy
+
+def screen_to_world(sx, sy):
+    """Convert screen coordinates to world coordinates"""
+    range_x = 15.0 - (-15.0)
+    range_y = 17.0 - (-15.0)
+    wx = -15.0 + (sx / window_width) * range_x
+    wy = -15.0 + (1.0 - (sy / window_height)) * range_y
+    return wx, wy
+
+def is_inside_original_ellipse(x, y):
+    """Check if a point is inside the original ellipse"""
+    return ((x - center_x)**2 / a**2 + (y - center_y)**2 / b**2) <= 1.0
+
+def is_inside_sheared_ellipse(x, y):
+    """Check if a point is inside the sheared ellipse"""
+    det = 1.0 - shear_x * shear_y
+    if det == 0:
+        return False
+    inv_x = (x - shear_x * y) / det
+    inv_y = (-shear_y * x + y) / det
+    return is_inside_original_ellipse(inv_x, inv_y)
+
 def draw_original_ellipse():
-    """Draw the original ellipse with center at (-2,2)"""
+    """Draw the original ellipse with center at (2,-1)"""
     glColor3f(0, 0, 1)  # Blue
     glLineWidth(2.0)
     
@@ -136,26 +164,45 @@ def draw_original_ellipse():
     glEnd()
     
     # Label the center
-    glRasterPos2f(center_x - 0.8, center_y - 0.5)
+    glRasterPos2f(center_x - 0.6, center_y - 0.6)
     for c in f"Center ({center_x},{center_y})":
         glutBitmapCharacter(GLUT_BITMAP_8_BY_13, ord(c))
     
-    # Label the ellipse parameters
-    glRasterPos2f(-9.5, 9.0)
-    for c in f"Ellipse Equation: ((x+2)²/9) + ((y-2)²/4) = 1":
+    # Label the ellipse equation
+    glRasterPos2f(-14.5, 16.0)  # Adjusted position for new grid
+    for c in "Ellipse: (x-2)^2/36 + (y+1)^2/25 = 1":
         glutBitmapCharacter(GLUT_BITMAP_9_BY_15, ord(c))
 
 def draw_filled_ellipse():
-    """Draw the original ellipse filled with cyan color"""
-    glColor3f(0, 1, 1)  # Cyan
+    """Draw the original ellipse filled with cyan color using flood-fill"""
+    # Start flood-fill from the center
+    seed_x, seed_y = world_to_screen(center_x, center_y)
     
-    # Draw filled ellipse using parametric equation
-    glBegin(GL_POLYGON)
-    for i in range(360):
-        theta = i * math.pi / 180
-        x = center_x + a * math.cos(theta)
-        y = center_y + b * math.sin(theta)
-        glVertex2f(x, y)
+    # Track filled pixels
+    filled = [[False] * window_height for _ in range(window_width)]
+    stack = [(seed_x, seed_y)]
+    
+    glPointSize(1.0)
+    glColor3f(0, 1, 1)  # Cyan
+    glBegin(GL_POINTS)
+    
+    while stack:
+        x, y = stack.pop()
+        
+        if not (0 <= x < window_width and 0 <= y < window_height) or filled[x][y]:
+            continue
+        
+        wx, wy = screen_to_world(x, y)
+        if is_inside_original_ellipse(wx, wy):
+            filled[x][y] = True
+            glVertex2f(wx, wy)
+            
+            # Add neighboring pixels
+            stack.append((x + 1, y))
+            stack.append((x - 1, y))
+            stack.append((x, y + 1))
+            stack.append((x, y - 1))
+    
     glEnd()
     
     # Draw the border
@@ -171,8 +218,8 @@ def draw_filled_ellipse():
     
     # Label the ellipse
     glColor3f(0, 0, 0)  # Black
-    glRasterPos2f(-9.5, 9.0)
-    for c in f"Flood-Fill Ellipse (Cyan)":
+    glRasterPos2f(-14.5, 16.0)
+    for c in "Flood-Fill Ellipse (Cyan)":
         glutBitmapCharacter(GLUT_BITMAP_9_BY_15, ord(c))
 
 def draw_sheared_ellipse():
@@ -210,68 +257,67 @@ def draw_sheared_ellipse():
     glEnd()
     
     # Label the new center
-    glRasterPos2f(new_center_x - 0.8, new_center_y - 0.5)
-    for c in f"Sheared Center ({new_center_x:.1f},{new_center_y:.1f})":
+    glRasterPos2f(new_center_x - 0.6, new_center_y - 0.6)
+    for c in f"New Center ({new_center_x:.1f},{new_center_y:.1f})":
         glutBitmapCharacter(GLUT_BITMAP_8_BY_13, ord(c))
-    
-    # Draw original center for reference
-    glColor3f(0.5, 0.5, 0.5)  # Gray
-    glPointSize(3.0)
-    glBegin(GL_POINTS)
-    glVertex2f(center_x, center_y)
-    glEnd()
     
     # Label shear parameters
     glColor3f(0, 0, 0)  # Black
-    glRasterPos2f(-9.5, 9.0)
-    for c in f"Shear Transformation: shearX = {shear_x}, shearY = {shear_y}":
+    glRasterPos2f(-14.5, 16.0)
+    for c in f"Shear: X={shear_x}, Y={shear_y}":
         glutBitmapCharacter(GLUT_BITMAP_9_BY_15, ord(c))
 
+
 def draw_filled_sheared_ellipse():
-    """Draw the sheared ellipse filled with green color"""
-    # Calculate points of the original ellipse and apply shear transformation
-    sheared_points = []
-    for i in range(360):
-        theta = i * math.pi / 180
-        x = center_x + a * math.cos(theta)
-        y = center_y + b * math.sin(theta)
-        
-        # Apply shear transformation
-        new_x = x + shear_x * y
-        new_y = y + shear_y * x
-        
-        sheared_points.append((new_x, new_y))
-    
-    # Draw the filled sheared ellipse
-    glColor3f(0, 1, 0)  # Green
-    glBegin(GL_POLYGON)
-    for x, y in sheared_points:
-        glVertex2f(x, y)
-    glEnd()
-    
-    # Draw the border
-    glColor3f(0, 0.5, 0)  # Dark green
-    glLineWidth(2.0)
-    glBegin(GL_LINE_LOOP)
-    for x, y in sheared_points:
-        glVertex2f(x, y)
-    glEnd()
-    
+    """Draw the sheared ellipse filled with green color using boundary-fill"""
     # Calculate new center after shear
     new_center_x = center_x + shear_x * center_y
     new_center_y = center_y + shear_y * center_x
     
-    # Mark the new center
-    glColor3f(1, 0, 0)  # Red
-    glPointSize(5.0)
+    # Start boundary-fill from the new center
+    seed_x, seed_y = world_to_screen(new_center_x, new_center_y)
+    
+    # Track filled pixels
+    filled = [[False] * window_height for _ in range(window_width)]
+    
+    # Use an iterative approach with a stack
+    stack = [(seed_x, seed_y)]
+    
+    # Fill the ellipse first
+    glPointSize(1.0)
+    glColor3f(0, 1, 0)  # Green
     glBegin(GL_POINTS)
-    glVertex2f(new_center_x, new_center_y)
+    
+    while stack:
+        x, y = stack.pop()
+        
+        # Skip if outside window or already filled
+        if not (0 <= x < window_width and 0 <= y < window_height) or filled[x][y]:
+            continue
+        
+        # Convert to world coordinates
+        wx, wy = screen_to_world(x, y)
+        
+        # Check if inside the sheared ellipse
+        if is_inside_sheared_ellipse(wx, wy):
+            filled[x][y] = True
+            glVertex2f(wx, wy)
+            
+            # Add neighboring pixels
+            stack.append((x + 1, y))
+            stack.append((x - 1, y))
+            stack.append((x, y + 1))
+            stack.append((x, y - 1))
+    
     glEnd()
+    
+    # Draw the boundary after filling to ensure it's visible
+    draw_sheared_ellipse()
     
     # Label the ellipse
     glColor3f(0, 0, 0)  # Black
-    glRasterPos2f(-9.5, 9.0)
-    for c in f"Boundary-Fill Sheared Ellipse (Green)":
+    glRasterPos2f(-14.5, 16.0)
+    for c in "Boundary-Fill Sheared Ellipse (Green)":
         glutBitmapCharacter(GLUT_BITMAP_9_BY_15, ord(c))
 
 def draw_antialiased_ellipse():
@@ -282,7 +328,7 @@ def draw_antialiased_ellipse():
     glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
     
     glColor3f(0, 0, 1)  # Blue
-    glLineWidth(2.0)
+    glLineWidth(1.0)
     
     # Draw ellipse using parametric equation
     glBegin(GL_LINE_LOOP)
@@ -298,8 +344,8 @@ def draw_antialiased_ellipse():
     
     # Label the ellipse
     glColor3f(0, 0, 0)  # Black
-    glRasterPos2f(-9.5, 9.0)
-    for c in f"Anti-aliased Ellipse (OpenGL)":
+    glRasterPos2f(-14.5, 16.0)
+    for c in "Anti-aliased Ellipse (OpenGL)":
         glutBitmapCharacter(GLUT_BITMAP_9_BY_15, ord(c))
     
     # Add zoomed-in view to show anti-aliasing effect
@@ -328,8 +374,8 @@ def draw_custom_antialiased_ellipse():
     
     # Label the ellipse
     glColor3f(0, 0, 0)  # Black
-    glRasterPos2f(-9.5, 9.0)
-    for c in f"Anti-aliased Ellipse (Custom Method)":
+    glRasterPos2f(-14.5, 16.0)
+    for c in "Anti-aliased Ellipse (Custom Method)":
         glutBitmapCharacter(GLUT_BITMAP_9_BY_15, ord(c))
     
     # Add zoomed-in view to show anti-aliasing effect
@@ -347,33 +393,53 @@ def draw_zoom_box(x, y, size):
     glVertex2f(x - size/2, y + size/2)
     glEnd()
     
-    # Draw zoomed view in corner
-    zoom_factor = 10
-    box_size = 3
+    # Save current viewport/projection
+    glPushMatrix()
+    glMatrixMode(GL_PROJECTION)
+    glPushMatrix()
+    glLoadIdentity()
     
-    # Draw zoom box background
-    glColor3f(0.9, 0.9, 0.9)  # Light gray
-    glBegin(GL_QUADS)
-    glVertex2f(-9.5, -7)
-    glVertex2f(-9.5 + box_size, -7)
-    glVertex2f(-9.5 + box_size, -7 + box_size)
-    glVertex2f(-9.5, -7 + box_size)
-    glEnd()
+    # Set up zoom viewport (bottom-right corner)
+    glViewport(window_width - 200, 0, 200, 200)
+    gluOrtho2D(x - 1.0, x + 1.0, y - 1.0, y + 1.0)
     
-    # Draw border around zoom box
-    glColor3f(0, 0, 0)  # Black
-    glLineWidth(1.0)
+    # Redraw the ellipse in the zoomed area
+    if display_mode == 5:
+        glEnable(GL_LINE_SMOOTH)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
+        glColor3f(0, 0, 1)
+        glLineWidth(1.0)
+    else:
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        for thickness in range(5, 0, -1):
+            alpha = thickness / 5.0
+            glColor4f(0, 0, 1, alpha)
+            glLineWidth(thickness)
+            glBegin(GL_LINE_LOOP)
+            for i in range(360):
+                theta = i * math.pi / 180
+                x = center_x + a * math.cos(theta)
+                y = center_y + b * math.sin(theta)
+                glVertex2f(x, y)
+            glEnd()
+        glDisable(GL_BLEND)
+    
     glBegin(GL_LINE_LOOP)
-    glVertex2f(-9.5, -7)
-    glVertex2f(-9.5 + box_size, -7)
-    glVertex2f(-9.5 + box_size, -7 + box_size)
-    glVertex2f(-9.5, -7 + box_size)
+    for i in range(360):
+        theta = i * math.pi / 180
+        x = center_x + a * math.cos(theta)
+        y = center_y + b * math.sin(theta)
+        glVertex2f(x, y)
     glEnd()
     
-    # Draw "Zoom" label
-    glRasterPos2f(-9.5, -7 - 0.5)
-    for c in "Zoomed (10x)":
-        glutBitmapCharacter(GLUT_BITMAP_8_BY_13, ord(c))
+    # Restore original viewport/projection
+    glPopMatrix()
+    glMatrixMode(GL_MODELVIEW)
+    glPopMatrix()
+    glViewport(0, 0, window_width, window_height)
 
 def display():
     """Main display function"""
@@ -399,32 +465,26 @@ def display():
     
     # Draw title
     glColor3f(0, 0, 0)
-    glRasterPos2f(-3, -8.5)
+    glRasterPos2f(-14.5, -14.5)  # Adjusted position
     title = "ICS 2311: Computer Graphics - Group 15"
     for c in title:
         glutBitmapCharacter(GLUT_BITMAP_9_BY_15, ord(c))
     
-    # Draw mode information
-    glRasterPos2f(-9.5, -9.5)
-    mode_text = f"Mode {display_mode}: "
-    if display_mode == 1:
-        mode_text += "Original Ellipse"
-    elif display_mode == 2:
-        mode_text += "Cyan-Filled Ellipse"
-    elif display_mode == 3:
-        mode_text += "Sheared Ellipse"
-    elif display_mode == 4:
-        mode_text += "Green-Filled Sheared Ellipse"
-    elif display_mode == 5:
-        mode_text += "Anti-aliased Ellipse (OpenGL)"
-    elif display_mode == 6:
-        mode_text += "Anti-aliased Ellipse (Custom)"
-    
-    for c in mode_text:
+    # Draw mode information and instructions
+    glColor3f(0, 0, 0)
+    glRasterPos2f(-14.5, 15.5)
+    mode_texts = [
+        "Original Ellipse",
+        "Cyan Filled Ellipse (Flood Fill)",
+        "Sheared Ellipse",
+        "Green Filled Sheared Ellipse (Boundary Fill)",
+        "Anti-Aliased Ellipse (OpenGL)",
+        "Custom Anti-Aliased Ellipse Implementation"
+    ]
+    for c in mode_texts[display_mode-1]:
         glutBitmapCharacter(GLUT_BITMAP_9_BY_15, ord(c))
     
-    # Draw instructions
-    glRasterPos2f(-9.5, -9.0)
+    glRasterPos2f(-14.5, 15.0)
     instructions = "Press 1-6 to switch modes, ESC to exit"
     for c in instructions:
         glutBitmapCharacter(GLUT_BITMAP_8_BY_13, ord(c))
@@ -440,7 +500,11 @@ def reshape(width, height):
     glViewport(0, 0, width, height)
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
-    gluOrtho2D(-10.0, 10.0, -10.0, 10.0)
+    # Maintain aspect ratio
+    aspect = width / height
+    range_y = 17.0 - (-15.0)  # Updated range
+    range_x = range_y * aspect
+    gluOrtho2D(-15.0, -15.0 + range_x, -15.0, 17.0)  # Updated grid range
     glMatrixMode(GL_MODELVIEW)
 
 def keyboard(key, x, y):
@@ -490,4 +554,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

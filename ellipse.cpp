@@ -3,14 +3,15 @@
 #include <iostream>
 #include <cstdlib>
 #include <vector>
+#include <stack> // Added for flood-fill
 
-// Constants for the ellipse equation
-const float a = 3.0f; // Semi-major axis
-const float b = 2.0f; // Semi-minor axis
+// Constants for the ellipse equation based on (x-2)²/36 + (y+1)²/25 = 1
+const float a = 6.0f; // Semi-major axis = sqrt(36)
+const float b = 5.0f; // Semi-minor axis = sqrt(25)
 
-// Original center coordinates
-const float centerX = -2.0f;
-const float centerY = 2.0f;
+// Center coordinates from the equation
+const float centerX = 2.0f;  // h = 2 in (x-h)²
+const float centerY = -1.0f; // k = -1 in (y-k)² (or +1 in (y+1)²)
 
 // Window size
 const int WINDOW_WIDTH = 800;
@@ -21,16 +22,10 @@ const float shearX = 2.0f;
 const float shearY = 2.0f;
 
 // Grid properties
-const float GRID_MIN_X = -10.0f;
-const float GRID_MAX_X = 10.0f;
-const float GRID_MIN_Y = -10.0f;
-const float GRID_MAX_Y = 10.0f;
-
-// Buffer for flood-fill
-struct Pixel {
-    int x, y;
-    Pixel(int _x, int _y) : x(_x), y(_y) {}
-};
+const float GRID_MIN_X = -15.0f;
+const float GRID_MAX_X = 15.0f;
+const float GRID_MIN_Y = -15.0f;
+const float GRID_MAX_Y = 17.0f;
 
 // Structure to represent a point in ellipse coordinates
 struct Point {
@@ -38,10 +33,16 @@ struct Point {
     Point(float _x, float _y) : x(_x), y(_y) {}
 };
 
+// Structure for pixel coordinates (used in flood-fill and boundary-fill)
+struct Pixel {
+    int x, y;
+    Pixel(int _x, int _y) : x(_x), y(_y) {}
+};
+
 // Global variables
 std::vector<Point> originalEllipsePoints;
 std::vector<Point> shearedEllipsePoints;
-int currentMode = 0; // 0=Original, 1=Cyan-filled, 2=Sheared, 3=Green-filled, 4=Anti-aliased
+int currentMode = 0; // 0=Original, 1=Cyan-filled, 2=Sheared, 3=Green-filled, 4=Anti-aliased, 5=Custom AA
 
 // Function to convert from world to screen coordinates
 void worldToScreen(float wx, float wy, int& sx, int& sy) {
@@ -91,24 +92,22 @@ void applyShearTransform() {
     }
 }
 
-// Check if point is inside the ellipse
+// Check if point is inside the original ellipse
 bool isInsideOriginalEllipse(float x, float y) {
     float dx = x - centerX;
     float dy = y - centerY;
     
-<<<<<<< HEAD
-    // Ellipse equation: (x-h)?/a? + (y-k)?/b? <= 1
-=======
-    // Ellipse equation: (x-h)�/a� + (y-k)�/b� <= 1
->>>>>>> b6b3603efb5f944e0b4958f44301282046304334
+    // Ellipse equation: (x-h)²/a² + (y-k)²/b² <= 1
     return ((dx*dx)/(a*a) + (dy*dy)/(b*b)) <= 1.0f;
 }
 
-// Check if point is inside the sheared ellipse
+// Corrected isInsideShearedEllipse function
 bool isInsideShearedEllipse(float x, float y) {
     // Apply inverse shear transformation to convert to original ellipse coordinates
-    float invX = x - shearX * y;
-    float invY = y - shearY * invX;
+    float det = 1.0f - shearX * shearY;
+    if (det == 0.0f) return false; // Prevent division by zero
+    float invX = (x - shearX * y) / det;
+    float invY = (-shearY * x + y) / det;
     
     // Now check if inverted point is inside original ellipse
     return isInsideOriginalEllipse(invX, invY);
@@ -220,6 +219,13 @@ void drawOriginalEllipse() {
     for (char* c = buffer; *c != '\0'; c++) {
         glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, *c);
     }
+    
+    // Label equation
+    glRasterPos2f(GRID_MIN_X + 0.5f, GRID_MAX_Y - 2.0f);
+    const char* eqn = "Ellipse: (x-2)^2/36 + (y+1)^2/25 = 1";
+    for (const char* c = eqn; *c != '\0'; c++) {
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, *c);
+    }
 }
 
 // Draw the sheared ellipse
@@ -250,44 +256,146 @@ void drawShearedEllipse() {
     for (char* c = buffer; *c != '\0'; c++) {
         glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, *c);
     }
+    
+    // Label shear parameters
+    glRasterPos2f(GRID_MIN_X + 0.5f, GRID_MAX_Y - 2.0f);
+    char shearInfo[50];
+    sprintf(shearInfo, "Shear: X=%.1f, Y=%.1f", shearX, shearY);
+    for (char* c = shearInfo; *c != '\0'; c++) {
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, *c);
+    }
 }
 
-// Execute flood fill algorithm for original ellipse
+// Flood-fill algorithm for the original ellipse (Cyan)
 void floodFillOriginalEllipse() {
-    // Prepare an offscreen buffer for drawing
-    glClear(GL_COLOR_BUFFER_BIT);
-    drawGrid();
-    drawOriginalEllipse();
-    
-    // Fill the ellipse with cyan color
+    // Cyan color
     float fillColor[3] = {0.0f, 1.0f, 1.0f}; // Cyan (RGB)
     
-    // Create a simple filled approximation of the ellipse
-    glColor3f(fillColor[0], fillColor[1], fillColor[2]);
-    glBegin(GL_POLYGON);
-    for (size_t i = 0; i < originalEllipsePoints.size(); i++) {
-        glVertex2f(originalEllipsePoints[i].x, originalEllipsePoints[i].y);
+    // Start from the center of the ellipse (seed point)
+    int seedX, seedY;
+    worldToScreen(centerX, centerY, seedX, seedY);
+    
+    std::stack<Pixel> stack;
+    stack.push(Pixel(seedX, seedY));
+    
+    // Create a buffer to track filled pixels
+    bool** filled = new bool*[WINDOW_WIDTH];
+    for (int i = 0; i < WINDOW_WIDTH; i++) {
+        filled[i] = new bool[WINDOW_HEIGHT];
+        for (int j = 0; j < WINDOW_HEIGHT; j++) {
+            filled[i][j] = false;
+        }
     }
+    
+    glPointSize(1.0f);
+    glColor3f(fillColor[0], fillColor[1], fillColor[2]);
+    glBegin(GL_POINTS);
+    
+    while (!stack.empty()) {
+        Pixel p = stack.top();
+        stack.pop();
+        
+        int x = p.x;
+        int y = p.y;
+        
+        // Skip if already filled or outside window
+        if (x < 0 || x >= WINDOW_WIDTH || y < 0 || y >= WINDOW_HEIGHT || filled[x][y]) {
+            continue;
+        }
+        
+        // Convert to world coordinates to check if inside ellipse
+        float wx, wy;
+        screenToWorld(x, y, wx, wy);
+        
+        if (isInsideOriginalEllipse(wx, wy)) {
+            filled[x][y] = true;
+            glVertex2f(wx, wy);
+            
+            // Push neighboring pixels
+            stack.push(Pixel(x + 1, y));
+            stack.push(Pixel(x - 1, y));
+            stack.push(Pixel(x, y + 1));
+            stack.push(Pixel(x, y - 1));
+        }
+    }
+    
     glEnd();
+    
+    // Clean up
+    for (int i = 0; i < WINDOW_WIDTH; i++) {
+        delete[] filled[i];
+    }
+    delete[] filled;
 }
 
-// Execute boundary fill algorithm for sheared ellipse
+// : Boundary-fill algorithm for the sheared ellipse (Green)
 void boundaryFillShearedEllipse() {
-    // Prepare an offscreen buffer for drawing
-    glClear(GL_COLOR_BUFFER_BIT);
-    drawGrid();
-    drawShearedEllipse();
-    
-    // Fill the ellipse with green color
+    // Green color for filling
     float fillColor[3] = {0.0f, 1.0f, 0.0f}; // Green (RGB)
     
-    // Create a simple filled approximation of the ellipse
-    glColor3f(fillColor[0], fillColor[1], fillColor[2]);
-    glBegin(GL_POLYGON);
-    for (size_t i = 0; i < shearedEllipsePoints.size(); i++) {
-        glVertex2f(shearedEllipsePoints[i].x, shearedEllipsePoints[i].y);
+    // Calculate transformed center
+    float transformedCenterX = centerX + shearX * centerY;
+    float transformedCenterY = centerY + shearY * centerX;
+    
+    // Use an iterative approach with a stack
+    std::stack<Pixel> stack;
+    int seedX, seedY;
+    worldToScreen(transformedCenterX, transformedCenterY, seedX, seedY);
+    stack.push(Pixel(seedX, seedY));
+    
+    // Create a buffer to track filled pixels
+    bool** filled = new bool*[WINDOW_WIDTH];
+    for (int i = 0; i < WINDOW_WIDTH; i++) {
+        filled[i] = new bool[WINDOW_HEIGHT];
+        for (int j = 0; j < WINDOW_HEIGHT; j++) {
+            filled[i][j] = false;
+        }
     }
+    
+    // Fill the ellipse first
+    glPointSize(1.0f);
+    glColor3f(fillColor[0], fillColor[1], fillColor[2]);
+    glBegin(GL_POINTS);
+    
+    while (!stack.empty()) {
+        Pixel p = stack.top();
+        stack.pop();
+        
+        int x = p.x;
+        int y = p.y;
+        
+        // Skip if outside window or already filled
+        if (x < 0 || x >= WINDOW_WIDTH || y < 0 || y >= WINDOW_HEIGHT || filled[x][y]) {
+            continue;
+        }
+        
+        // Convert to world coordinates
+        float wx, wy;
+        screenToWorld(x, y, wx, wy);
+        
+        // Check if inside the sheared ellipse
+        if (isInsideShearedEllipse(wx, wy)) {
+            filled[x][y] = true;
+            glVertex2f(wx, wy);
+            
+            // Push neighboring pixels
+            stack.push(Pixel(x + 1, y));
+            stack.push(Pixel(x - 1, y));
+            stack.push(Pixel(x, y + 1));
+            stack.push(Pixel(x, y - 1));
+        }
+    }
+    
     glEnd();
+    
+    // Draw the boundary after filling to ensure it's visible
+    drawShearedEllipse();
+    
+    // Clean up
+    for (int i = 0; i < WINDOW_WIDTH; i++) {
+        delete[] filled[i];
+    }
+    delete[] filled;
 }
 
 // Draw anti-aliased ellipse using OpenGL's built-in anti-aliasing
@@ -298,11 +406,7 @@ void drawAntiAliasedEllipse() {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
     
-<<<<<<< HEAD
     glLineWidth(1.0f);
-=======
-    glLineWidth(1.5f);
->>>>>>> b6b3603efb5f944e0b4958f44301282046304334
     glColor3f(0.0f, 0.0f, 0.0f); // Black
     
     // Draw the anti-aliased ellipse
@@ -397,7 +501,7 @@ void display() {
             break;
         case 3: // Green filled sheared ellipse
             boundaryFillShearedEllipse();
-            drawShearedEllipse(); // Redraw boundary
+            // Boundary is already drawn inside boundaryFillShearedEllipse
             break;
         case 4: // Anti-aliased ellipse
             drawAntiAliasedEllipse();
@@ -407,8 +511,8 @@ void display() {
             break;
     }
     
-<<<<<<< HEAD
-      if (currentMode == 4 || currentMode == 5) {
+    // For anti-aliased modes, add a zoomed view of the edge
+    if (currentMode == 4 || currentMode == 5) {
         // Save current viewport/projection
         glPushMatrix();
         glMatrixMode(GL_PROJECTION);
@@ -446,8 +550,6 @@ void display() {
         glEnd();
     }
     
-=======
->>>>>>> b6b3603efb5f944e0b4958f44301282046304334
     // Display current mode and instructions
     glColor3f(0.0f, 0.0f, 0.0f); // Black text
     glRasterPos2f(GRID_MIN_X + 0.5f, GRID_MAX_Y - 0.5f);
