@@ -267,7 +267,7 @@ def draw_sheared_ellipse():
     for c in f"Shear: X={shear_x}, Y={shear_y}":
         glutBitmapCharacter(GLUT_BITMAP_9_BY_15, ord(c))
 
-# UPDATED FUNCTION
+
 def draw_filled_sheared_ellipse():
     """Draw the sheared ellipse filled with green color using boundary-fill"""
     # Calculate new center after shear
@@ -351,36 +351,62 @@ def draw_antialiased_ellipse():
     # Add zoomed-in view to show anti-aliasing effect
     draw_zoom_box(center_x + a, center_y, 1.0)
 
-def draw_custom_antialiased_ellipse():
-    """Draw the ellipse with custom antialiasing by simulating fade effect"""
+def wuAntiAliasedEllipse():
+    """Draw anti-aliased ellipse using improved Wu's algorithm"""
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
     
-    # Draw multiple ellipses with varying alpha values
-    for thickness in range(5, 0, -1):
-        alpha = thickness / 5.0
-        glColor4f(0, 0, 1, alpha)  # Blue with alpha
-        
-        glLineWidth(thickness)
-        glBegin(GL_LINE_LOOP)
-        for i in range(360):
-            theta = i * math.pi / 180
-            x = center_x + a * math.cos(theta)
-            y = center_y + b * math.sin(theta)
-            glVertex2f(x, y)
-        glEnd()
+    # Use smaller point size for better control
+    glPointSize(0.8)
     
+    glBegin(GL_POINTS)
+    
+    # Use smaller step size for smoother curve
+    step = 0.0005
+    for angle in np.arange(0, 2 * np.pi, step):
+        exact_x = center_x + a * np.cos(angle)
+        exact_y = center_y + b * np.sin(angle)
+        
+        # Get integer pixel coordinates
+        pixel_x = int(np.floor(exact_x))
+        pixel_y = int(np.floor(exact_y))
+        
+        # Calculate sub-pixel position
+        frac_x = exact_x - pixel_x
+        frac_y = exact_y - pixel_y
+        
+        # Draw center pixel with calculated intensity
+        center_intensity = 1.0
+        glColor4f(0.0, 0.0, 0.0, center_intensity)
+        glVertex2f(exact_x, exact_y)
+        
+        # Calculate and draw anti-aliased pixels
+        radius = 0.15  # Smaller radius for sharper edges
+        for dx in np.arange(-radius, radius + 0.15, 0.15):
+            for dy in np.arange(-radius, radius + 0.15, 0.15):
+                if dx == 0.0 and dy == 0.0:
+                    continue
+                
+                dist = np.sqrt(dx*dx + dy*dy)
+                if dist <= radius:
+                    alpha = (radius - dist) / radius
+                    alpha *= 0.2  # Reduced intensity for sharper edges
+                    
+                    glColor4f(0.0, 0.0, 0.0, alpha)
+                    glVertex2f(exact_x + dx, exact_y + dy)
+    
+    glEnd()
     glDisable(GL_BLEND)
     
-    # Label the ellipse
-    glColor3f(0, 0, 0)  # Black
-    glRasterPos2f(-14.5, 16.0)
-    for c in "Anti-aliased Ellipse (Custom Method)":
-        glutBitmapCharacter(GLUT_BITMAP_9_BY_15, ord(c))
-    
-    # Add zoomed-in view to show anti-aliasing effect
-    draw_zoom_box(center_x + a, center_y, 1.0)
-
+    # Label the ellipse (only if not in zoom box)
+    if display_mode == 6:  # Only show label in main view
+        glColor3f(0, 0, 0)
+        glRasterPos2f(-14.5, 16.0)
+        for c in "Custom Anti-Aliased Ellipse (Wu's)":
+            glutBitmapCharacter(GLUT_BITMAP_9_BY_15, ord(c))
+        
+        # Add zoomed view indicator
+        draw_zoom_box(center_x + a, center_y, 1.0)
 def draw_zoom_box(x, y, size):
     """Draw a zoomed-in view at (x,y) to show anti-aliasing effect"""
     # Draw the zoom area indicator
@@ -403,37 +429,33 @@ def draw_zoom_box(x, y, size):
     glViewport(window_width - 200, 0, 200, 200)
     gluOrtho2D(x - 1.0, x + 1.0, y - 1.0, y + 1.0)
     
-    # Redraw the ellipse in the zoomed area
-    if display_mode == 5:
-        glEnable(GL_LINE_SMOOTH)
-        glEnable(GL_BLEND)
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
-        glColor3f(0, 0, 1)
-        glLineWidth(1.0)
-    else:
-        glEnable(GL_BLEND)
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        for thickness in range(5, 0, -1):
-            alpha = thickness / 5.0
-            glColor4f(0, 0, 1, alpha)
-            glLineWidth(thickness)
-            glBegin(GL_LINE_LOOP)
-            for i in range(360):
-                theta = i * math.pi / 180
-                x = center_x + a * math.cos(theta)
-                y = center_y + b * math.sin(theta)
-                glVertex2f(x, y)
-            glEnd()
-        glDisable(GL_BLEND)
+    # Draw the zoomed portion without recursion
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
     
-    glBegin(GL_LINE_LOOP)
-    for i in range(360):
-        theta = i * math.pi / 180
-        x = center_x + a * math.cos(theta)
-        y = center_y + b * math.sin(theta)
-        glVertex2f(x, y)
+    # Draw the anti-aliased portion in the zoom box
+    step = 0.0005
+    glPointSize(0.8)
+    glBegin(GL_POINTS)
+    for angle in np.arange(0, 2 * np.pi, step):
+        exact_x = center_x + a * np.cos(angle)
+        exact_y = center_y + b * np.sin(angle)
+        
+        glColor4f(0.0, 0.0, 0.0, 1.0)
+        glVertex2f(exact_x, exact_y)
+        
+        radius = 0.15
+        for dx in np.arange(-radius, radius + 0.15, 0.15):
+            for dy in np.arange(-radius, radius + 0.15, 0.15):
+                if dx == 0.0 and dy == 0.0:
+                    continue
+                dist = np.sqrt(dx*dx + dy*dy)
+                if dist <= radius:
+                    alpha = (radius - dist) / radius * 0.2
+                    glColor4f(0.0, 0.0, 0.0, alpha)
+                    glVertex2f(exact_x + dx, exact_y + dy)
     glEnd()
+    glDisable(GL_BLEND)
     
     # Restore original viewport/projection
     glPopMatrix()
@@ -461,7 +483,8 @@ def display():
     elif display_mode == 5:
         draw_antialiased_ellipse()
     elif display_mode == 6:
-        draw_custom_antialiased_ellipse()
+        wuAntiAliasedEllipse()
+
     
     # Draw title
     glColor3f(0, 0, 0)

@@ -328,7 +328,7 @@ void floodFillOriginalEllipse() {
     delete[] filled;
 }
 
-// UPDATED: Boundary-fill algorithm for the sheared ellipse (Green)
+// : Boundary-fill algorithm for the sheared ellipse (Green)
 void boundaryFillShearedEllipse() {
     // Green color for filling
     float fillColor[3] = {0.0f, 1.0f, 0.0f}; // Green (RGB)
@@ -421,63 +421,56 @@ void drawAntiAliasedEllipse() {
     glDisable(GL_BLEND);
 }
 
-// Custom anti-aliasing for ellipse (manual implementation)
 void customAntiAliasedEllipse() {
-    // Create a higher density set of points for smoother rendering
-    const int numSegments = 200;
-    std::vector<Point> highResPoints;
-    
-    for (int i = 0; i <= numSegments; i++) {
-        float t = 2.0f * M_PI * i / numSegments;
-        float x = centerX + a * cos(t);
-        float y = centerY + b * sin(t);
-        highResPoints.push_back(Point(x, y));
-    }
-    
-    // Draw points with intensity based on distance from the theoretical ellipse
-    glPointSize(2.0f);
-    glBegin(GL_POINTS);
-    
-    for (float angle = 0; angle <= 2.0f * M_PI; angle += 0.01f) {
-        float exactX = centerX + a * cos(angle);
-        float exactY = centerY + b * sin(angle);
-        
-        // Draw the main point
-        glColor3f(0.0f, 0.0f, 0.0f); // Black
-        glVertex2f(exactX, exactY);
-        
-        // Draw adjacent points with decreasing opacity to create anti-aliased effect
-        for (float offset = 0.05f; offset <= 0.2f; offset += 0.05f) {
-            float alpha = 1.0f - offset * 5.0f; // Decreasing opacity
-            
-            // Inner points
-            glColor4f(0.0f, 0.0f, 0.0f, alpha);
-            glVertex2f(exactX - offset * cos(angle), exactY - offset * sin(angle));
-            
-            // Outer points
-            glVertex2f(exactX + offset * cos(angle), exactY + offset * sin(angle));
-        }
-    }
-    
-    glEnd();
-    
-    // Draw the theoretical ellipse path
-    glEnable(GL_LINE_SMOOTH);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     
-    glColor3f(0.0f, 0.0f, 0.8f); // Dark blue
-    glLineWidth(1.0f);
+    // Use smaller point size for sharper lines
+    glPointSize(0.8f);
     
-    glBegin(GL_LINE_LOOP);
-    for (size_t i = 0; i < highResPoints.size(); i++) {
-        glVertex2f(highResPoints[i].x, highResPoints[i].y);
+    glBegin(GL_POINTS);
+    
+    // Use smaller step size for smoother curve
+    const float step = 0.0005f;
+    for (float angle = 0.0f; angle <= 2.0f * M_PI; angle += step) {
+        float exactX = centerX + a * cos(angle);
+        float exactY = centerY + b * sin(angle);
+        
+        // Get integer pixel coordinates
+        int pixelX = (int)floor(exactX);
+        int pixelY = (int)floor(exactY);
+        
+        // Calculate sub-pixel position
+        float fracX = exactX - pixelX;
+        float fracY = exactY - pixelY;
+        
+        // Draw center pixel with calculated intensity
+        float centerIntensity = 1.0f;
+        glColor4f(0.0f, 0.0f, 0.0f, centerIntensity);
+        glVertex2f(exactX, exactY);
+        
+        // Calculate and draw anti-aliased pixels
+        float radius = 0.15f;  // Smaller radius for sharper edges
+        for(float dx = -radius; dx <= radius; dx += 0.15f) {
+            for(float dy = -radius; dy <= radius; dy += 0.15f) {
+                if(dx == 0.0f && dy == 0.0f) continue;
+                
+                float dist = sqrt(dx*dx + dy*dy);
+                if(dist <= radius) {
+                    float alpha = (radius - dist) / radius;
+                    alpha *= 0.2f;  // Reduced intensity for sharper edges
+                    
+                    glColor4f(0.0f, 0.0f, 0.0f, alpha);
+                    glVertex2f(exactX + dx, exactY + dy);
+                }
+            }
+        }
     }
     glEnd();
     
-    glDisable(GL_LINE_SMOOTH);
     glDisable(GL_BLEND);
-}
+} 
+
 
 // Display function
 void display() {
